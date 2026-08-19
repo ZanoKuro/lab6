@@ -1,46 +1,117 @@
 # 📦 Event-Driven Architecture — Sales System Prototype
 
-## 1. Mô tả
+![Python](https://img.shields.io/badge/Python-3.11-blue?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?logo=fastapi&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis-7.0-DC382D?logo=redis&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
 
 Prototype hệ thống bán hàng áp dụng **Event-Driven Architecture (EDA)** sử dụng **Redis Pub/Sub** làm message broker. Khi một đơn hàng được tạo, hệ thống phát ra event `order_created` và các service độc lập xử lý bất đồng bộ.
 
-## 2. Kiến trúc
+Dự án bao gồm một **Web Dashboard** hiển thị luồng sự kiện (Live Event Stream) theo thời gian thực.
 
+---
+
+## 📑 Mục lục
+- [1. Kiến trúc hệ thống](#1-kiến-trúc-hệ-thống)
+- [2. Các thành phần](#2-các-thành-phần)
+- [3. Quyết định kiến trúc](#3-quyết-định-kiến-trúc)
+- [4. Hướng dẫn chạy (Local)](#4-hướng-dẫn-chạy-local)
+- [5. Hướng dẫn Demo](#5-hướng-dẫn-demo)
+- [6. Event Schema](#6-event-schema)
+
+---
+
+## 1. Kiến trúc hệ thống
+
+```mermaid
+graph TD
+    Client[Client / Web Dashboard] -->|POST /orders| OrderService(Order Service - FastAPI)
+    OrderService -->|Response ngay lập tức| Client
+    
+    OrderService -.->|PUBLISH 'order_created'| Redis[(Redis Pub/Sub)]
+    
+    Redis -.->|SUBSCRIBE| InventoryService(Inventory Service)
+    Redis -.->|SUBSCRIBE| NotificationService(Notification Service)
+    Redis -.->|SUBSCRIBE| AnalyticsService(Analytics Service)
+    
+    InventoryService -->|✅ Trừ tồn kho| Logs
+    NotificationService -->|⚠️ 50% lỗi giả lập| Logs
+    AnalyticsService -->|⏳ Delay 5-8s| Logs
 ```
-┌────────────┐     POST /orders      ┌─────────────────┐
-│   Client   │ ──────────────────────▶│  Order Service  │
-│ (cURL/UI)  │ ◀───── response ──────│    (FastAPI)     │
-└────────────┘    (trả ngay lập tức)  └────────┬────────┘
-                                               │
-                                        PUBLISH │ order_created
-                                               ▼
-                                    ┌──────────────────┐
-                                    │   Redis Pub/Sub  │
-                                    │   (Message Broker)│
-                                    └──┬───────┬───────┘
-                                       │       │       │
-                          SUBSCRIBE    │       │       │    SUBSCRIBE
-                    ┌──────────────────┘       │       └──────────────────┐
-                    ▼                          ▼                          ▼
-          ┌─────────────────┐     ┌──────────────────────┐    ┌──────────────────┐
-          │Inventory Service│     │Notification Service  │    │Analytics Service  │
-          │   (Consumer)    │     │   (Consumer)         │    │   (Consumer)      │
-          │                 │     │                      │    │                   │
-          │ ✅ Trừ tồn kho  │     │ ⚠️ 50% lỗi giả lập   │    │ ⏳ Delay 5-8s     │
-          └─────────────────┘     └──────────────────────┘    └──────────────────┘
+
+## 2. Các thành phần
+
+| Service | Vai trò | Hành vi đặc biệt |
+|---------|---------|------------------|
+| **Order Service** | Nhận đơn hàng, publish event | Trả response ngay, không chờ consumer |
+| **Inventory Service** | Trừ tồn kho | Hoạt động bình thường (~0.5s/item) |
+| **Notification Service**| Gửi email thông báo | **50% xác suất lỗi** — demo fault isolation |
+| **Analytics Service** | Ghi nhận phân tích | **Delay 5-8 giây** — demo async |
+| **Redis** | Message broker | Channel: `order_created` và `service_logs` |
+
+---
+
+## 3. Quyết định kiến trúc
+
+- **Tách biệt (Decoupling):** Order Service là producer duy nhất — tách biệt logic tạo đơn hàng khỏi logic xử lý sau đó. Mỗi tác vụ phản ứng (inventory, notification, analytics) là một consumer độc lập, chạy trong container riêng.
+- **Cơ chế truyền message:** Sử dụng **Redis Pub/Sub**. Một event publish lên channel sẽ được tất cả subscriber nhận (**fan-out** tự nhiên).
+- **Fault Isolation (Cô lập lỗi):** Mỗi consumer bọc logic xử lý trong `try/except`. Service không crash khi gặp lỗi — log lỗi rồi tiếp tục lắng nghe. Order Service không bị ảnh hưởng nếu consumer lỗi.
+- **Khả năng mở rộng (Scalability):** Thêm chức năng mới chỉ cần tạo service mới subscribe channel `order_created`, hoàn toàn tuân thủ *Open/Closed Principle*.
+
+---
+
+## 4. Hướng dẫn chạy (Local)
+
+### Yêu cầu
+- Docker Desktop đã cài và đang chạy.
+
+### Khởi động hệ thống
+
+```bash
+# Clone repository
+git clone https://github.com/YOUR_USERNAME/lab6.git
+cd lab6
+
+# Khởi động các container
+docker-compose up --build -d
 ```
 
-### Các thành phần
+### Truy cập Web Dashboard
+Mở trình duyệt và truy cập: **[http://localhost:8000](http://localhost:8000)**
 
-| Service               | Vai trò                           | Hành vi đặc biệt                    |
-| --------------------- | --------------------------------- | ------------------------------------ |
-| **Order Service**     | Nhận đơn hàng, publish event      | Trả response ngay, không chờ consumer |
-| **Inventory Service** | Trừ tồn kho                       | Hoạt động bình thường (~0.5s/item)   |
-| **Notification Service** | Gửi email thông báo (giả lập)  | **50% xác suất lỗi** — demo fault isolation |
-| **Analytics Service** | Ghi nhận phân tích                | **Delay 5-8 giây** — demo async      |
-| **Redis**             | Message broker (Pub/Sub)          | Channel: `order_created`             |
+Web Dashboard cho phép bạn:
+- Tạo đơn hàng với dữ liệu mẫu chỉ bằng 1 click.
+- Theo dõi **Live Event Stream** hiển thị log real-time từ tất cả các service (thông qua Server-Sent Events).
 
-## 3. Event Schema
+---
+
+## 5. Hướng dẫn Demo
+
+Bạn có thể demo trực tiếp trên Web Dashboard hoặc dùng lệnh curl/PowerShell.
+
+### Kịch bản 1: Asynchronous Service Calling (Bất đồng bộ)
+1. Tạo một đơn hàng trên Dashboard.
+2. **Quan sát:** Thông báo "Order created successfully" hiện ra **ngay lập tức** (< 1 giây).
+3. **Quan sát Live Event Stream:** Analytics Service vẫn báo `⏳ Processing analytics...` và mất 5-8 giây mới hoàn thành.
+> 👉 **Chứng minh:** Thao tác tạo đơn hàng không bị block bởi các tác vụ xử lý nặng.
+
+### Kịch bản 2: Fan-out Pattern
+1. Tạo 1 đơn hàng duy nhất.
+2. **Quan sát Live Event Stream:** Cùng 1 lúc, cả 3 service (Inventory, Notification, Analytics) đều nhận được thông tin về đơn hàng đó và bắt đầu xử lý.
+> 👉 **Chứng minh:** 1 event được nhiều thành phần xử lý song song.
+
+### Kịch bản 3: Fault Isolation (Cô lập lỗi)
+1. Nhấn tạo liên tục 3-5 đơn hàng.
+2. **Quan sát Live Event Stream:** 
+   - Sẽ có lúc Notification Service báo lỗi màu đỏ `❌ Failed to send email — SMTP server unavailable` (xác suất 50%).
+   - Tuy nhiên, Inventory và Analytics **vẫn xử lý bình thường** các đơn hàng đó. Order Service vẫn trả kết quả thành công.
+> 👉 **Chứng minh:** Lỗi ở một thành phần không làm sập toàn bộ hệ thống hay ảnh hưởng đến luồng chính.
+
+---
+
+## 6. Event Schema
+
+Định dạng JSON của event `order_created` gửi qua Redis:
 
 ```json
 {
@@ -57,115 +128,3 @@ Prototype hệ thống bán hàng áp dụng **Event-Driven Architecture (EDA)**
   }
 }
 ```
-
-## 4. Quyết định kiến trúc
-
-### Cách chia component
-- **Order Service** là producer duy nhất — tách biệt logic tạo đơn hàng khỏi logic xử lý sau đó.
-- Mỗi tác vụ phản ứng (inventory, notification, analytics) là một **consumer service độc lập**, chạy trong container riêng.
-
-### Cơ chế truyền message
-- Sử dụng **Redis Pub/Sub** — đơn giản, hiệu quả cho prototype.
-- Một event publish lên channel sẽ được **tất cả subscriber nhận** (fan-out tự nhiên).
-
-### Xử lý lỗi
-- Mỗi consumer bọc logic xử lý trong `try/except` — lỗi chỉ ảnh hưởng consumer đó.
-- Service không crash khi gặp lỗi — log lỗi rồi tiếp tục lắng nghe event tiếp theo.
-- Order Service không biết và không quan tâm consumer có thành công hay không.
-
-### Khả năng mở rộng
-- Thêm consumer mới chỉ cần tạo service mới subscribe cùng channel `order_created`.
-- Không cần sửa đổi Order Service hay bất kỳ consumer hiện có nào.
-
-## 5. Hướng dẫn chạy
-
-### Yêu cầu
-- Docker Desktop đã cài và đang chạy
-
-### Khởi động
-
-```bash
-cd lab6
-docker-compose up --build
-```
-
-Chờ tất cả service start xong (khi thấy log "Waiting for events..." từ 3 consumer).
-
-### Tạo đơn hàng mẫu
-
-```bash
-curl -X POST http://localhost:8000/orders \
-  -H "Content-Type: application/json" \
-  -d '{
-    "customer_name": "Nguyen Van A",
-    "items": [
-      {"product": "Laptop", "quantity": 1, "price": 15000000},
-      {"product": "Mouse", "quantity": 2, "price": 500000}
-    ]
-  }'
-```
-
-Trên Windows PowerShell:
-
-```powershell
-Invoke-RestMethod -Method Post -Uri "http://localhost:8000/orders" `
-  -ContentType "application/json" `
-  -Body '{"customer_name":"Nguyen Van A","items":[{"product":"Laptop","quantity":1,"price":15000000},{"product":"Mouse","quantity":2,"price":500000}]}'
-```
-
-### Dừng hệ thống
-
-```bash
-docker-compose down
-```
-
-## 6. Hướng dẫn demo
-
-### Demo 1: Asynchronous Service Calling
-1. Gửi request tạo đơn hàng bằng curl
-2. **Quan sát**: Response trả về ngay lập tức (< 1 giây)
-3. **Quan sát**: Trong Docker logs, Analytics Service vẫn đang xử lý (delay 5-8s) sau khi response đã trả
-
-### Demo 2: Fan-out
-1. Gửi 1 request tạo đơn hàng
-2. **Quan sát** Docker logs: Cả 3 consumer (Inventory, Notification, Analytics) đều nhận và xử lý cùng event
-3. Response trả về `"subscribers_notified": 3` xác nhận 3 subscriber đã nhận event
-
-### Demo 3: Fault Isolation
-1. Gửi nhiều request tạo đơn hàng (3-5 lần)
-2. **Quan sát** Docker logs:
-   - Notification Service có lần báo `❌ ERROR` (50% xác suất)
-   - Nhưng Inventory Service và Analytics Service **vẫn xử lý bình thường**
-   - Order Service vẫn trả response thành công
-   - Notification Service **không crash** — log lỗi rồi tiếp tục lắng nghe event tiếp theo
-
-### Demo 4: Khả năng mở rộng
-- Giải thích: Để thêm chức năng mới (ví dụ: loyalty points), chỉ cần tạo service mới subscribe channel `order_created` — không cần sửa đổi code hiện có (Open/Closed Principle).
-
-## 7. Log output kỳ vọng
-
-```
-eda-order-service         | [ORDER SERVICE] ✅ Order abc123 created successfully
-eda-order-service         | [ORDER SERVICE] 📤 Event published to 'order_created' — 3 subscriber(s) received
-eda-inventory-service     | [INVENTORY] 📦 Received order abc123
-eda-inventory-service     | [INVENTORY] ✅ Updated stock: Laptop → deducted 1 unit(s)
-eda-inventory-service     | [INVENTORY] ✅ Updated stock: Mouse → deducted 2 unit(s)
-eda-inventory-service     | [INVENTORY] ✅ Inventory update completed for order abc123
-eda-notification-service  | [NOTIFICATION] 📧 Received order abc123 for customer 'Nguyen Van A'
-eda-notification-service  | [NOTIFICATION] ❌ ERROR: Failed to send email — SMTP server unavailable
-eda-notification-service  | [NOTIFICATION] ⚡ Service still running — waiting for next event...
-eda-analytics-service     | [ANALYTICS] 📊 Received order abc123
-eda-analytics-service     | [ANALYTICS] ⏳ Processing analytics (simulated delay: 6.3s)...
-eda-analytics-service     | [ANALYTICS] ✅ Analytics recorded:
-eda-analytics-service     |     ├── Order ID    : abc123
-eda-analytics-service     |     ├── Customer    : Nguyen Van A
-eda-analytics-service     |     ├── Total       : 16,000,000
-eda-analytics-service     |     └── Process time: 6.3s
-```
-
-## 8. Công nghệ sử dụng
-
-- **Python 3.11** — ngôn ngữ lập trình
-- **FastAPI** — web framework cho Order Service
-- **Redis 7** — message broker (Pub/Sub)
-- **Docker & Docker Compose** — container hóa và orchestration
