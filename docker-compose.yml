@@ -1,0 +1,52 @@
+services:
+  # ── Message Broker ────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: eda-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ── Producer ──────────────────────────────────────────────────────────
+  order_service:
+    build: ./order_service
+    container_name: eda-order-service
+    ports:
+      - "8000:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  # ── Consumers ─────────────────────────────────────────────────────────
+  inventory_service:
+    build: ./inventory_service
+    container_name: eda-inventory-service
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  notification_service:
+    build: ./notification_service
+    container_name: eda-notification-service
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  analytics_service:
+    build: ./analytics_service
+    container_name: eda-analytics-service
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - PYTHONUNBUFFERED=1

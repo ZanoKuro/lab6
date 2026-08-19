@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EDA Sales System — Event-Driven Architecture Demo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0b0b1a;
+            --bg-secondary: #12122a;
+            --bg-card: rgba(255,255,255,0.035);
+            --bg-card-hover: rgba(255,255,255,0.055);
+            --border: rgba(255,255,255,0.07);
+            --border-hover: rgba(255,255,255,0.14);
+            --text-1: #f1f5f9;
+            --text-2: #94a3b8;
+            --text-3: #64748b;
+            --accent: #6366f1;
+            --accent-glow: rgba(99,102,241,0.25);
+            --success: #34d399;
+            --error: #f87171;
+            --warning: #fbbf24;
+            --info: #60a5fa;
+            --svc-order: #818cf8;
+            --svc-inventory: #34d399;
+            --svc-notification: #fbbf24;
+            --svc-analytics: #c084fc;
+            --radius: 14px;
+            --radius-sm: 8px;
+        }
+
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-1);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ── Animated Background ─────────────────────────────── */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 600px 400px at 20% 20%, rgba(99,102,241,0.08), transparent),
+                radial-gradient(ellipse 500px 350px at 80% 70%, rgba(168,85,247,0.06), transparent),
+                radial-gradient(ellipse 400px 300px at 50% 50%, rgba(52,211,153,0.04), transparent);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ── Layout ──────────────────────────────────────────── */
+        .app { position: relative; z-index: 1; max-width: 1360px; margin: 0 auto; padding: 24px 28px 48px; }
+
+        /* ── Header ──────────────────────────────────────────── */
+        .header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 20px 28px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            backdrop-filter: blur(20px);
+            margin-bottom: 24px;
+        }
+        .header-left { display: flex; align-items: center; gap: 16px; }
+        .header-icon {
+            width: 44px; height: 44px;
+            background: linear-gradient(135deg, var(--accent), #a855f7);
+            border-radius: 12px;
+            display: grid; place-items: center;
+            font-size: 20px;
+            box-shadow: 0 4px 20px var(--accent-glow);
+        }
+        .header-title { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
+        .header-sub { font-size: 13px; color: var(--text-3); margin-top: 2px; }
+        .connection-badge {
+            display: flex; align-items: center; gap: 8px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px; font-weight: 600;
+            background: rgba(52,211,153,0.1);
+            color: var(--success);
+            border: 1px solid rgba(52,211,153,0.2);
+            transition: all 0.3s;
+        }
+        .connection-badge.disconnected {
+            background: rgba(248,113,113,0.1);
+            color: var(--error);
+            border-color: rgba(248,113,113,0.2);
+        }
+        .connection-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+            animation: pulse-dot 2s infinite;
+        }
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.8); }
+        }
+
+        /* ── Stats ───────────────────────────────────────────── */
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 14px;
+            margin-bottom: 24px;
+        }
+        .stat-card {
+            padding: 18px 20px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            backdrop-filter: blur(12px);
+            transition: all 0.25s;
+        }
+        .stat-card:hover { background: var(--bg-card-hover); border-color: var(--border-hover); }
+        .stat-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); }
+        .stat-value { font-size: 28px; font-weight: 800; margin-top: 6px; letter-spacing: -0.03em; }
+        .stat-value.orders { color: var(--svc-order); }
+        .stat-value.events { color: var(--svc-inventory); }
+        .stat-value.errors { color: var(--error); }
+        .stat-value.subscribers { color: var(--svc-analytics); }
+
+        /* ── Main Grid ───────────────────────────────────────── */
+        .main-grid { display: grid; grid-template-columns: 380px 1fr; gap: 20px; margin-bottom: 24px; }
+
+        /* ── Card ────────────────────────────────────────────── */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            backdrop-filter: blur(20px);
+            overflow: hidden;
+        }
+        .card-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 18px 22px;
+            border-bottom: 1px solid var(--border);
+        }
+        .card-title { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+        .card-body { padding: 22px; }
+
+        /* ── Form ────────────────────────────────────────────── */
+        .form-group { margin-bottom: 18px; }
+        .form-label {
+            display: block;
+            font-size: 12px; font-weight: 600; text-transform: uppercase;
+            letter-spacing: 0.06em; color: var(--text-2);
+            margin-bottom: 8px;
+        }
+        .form-input {
+            width: 100%; padding: 11px 14px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-1);
+            font-family: inherit; font-size: 14px;
+            transition: all 0.2s;
+            outline: none;
+        }
+        .form-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+        .form-input::placeholder { color: var(--text-3); }
+
+        .item-row {
+            display: grid; grid-template-columns: 1fr 70px 110px 36px; gap: 8px;
+            margin-bottom: 8px;
+            animation: slideIn 0.2s ease-out;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(-8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .btn-remove-item {
+            background: rgba(248,113,113,0.1);
+            border: 1px solid rgba(248,113,113,0.15);
+            color: var(--error);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.2s;
+            display: grid; place-items: center;
+        }
+        .btn-remove-item:hover { background: rgba(248,113,113,0.2); }
+
+        .btn-add-item {
+            width: 100%; padding: 9px;
+            background: transparent;
+            border: 1px dashed var(--border-hover);
+            border-radius: var(--radius-sm);
+            color: var(--text-3);
+            font-family: inherit; font-size: 13px; font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 20px;
+        }
+        .btn-add-item:hover { border-color: var(--accent); color: var(--accent); }
+
+        .btn-submit {
+            width: 100%; padding: 14px;
+            background: linear-gradient(135deg, var(--accent), #a855f7);
+            border: none;
+            border-radius: var(--radius-sm);
+            color: white;
+            font-family: inherit; font-size: 15px; font-weight: 700;
+            cursor: pointer;
+            transition: all 0.25s;
+            position: relative;
+            overflow: hidden;
+        }
+        .btn-submit:hover { transform: translateY(-1px); box-shadow: 0 8px 30px var(--accent-glow); }
+        .btn-submit:active { transform: translateY(0); }
+        .btn-submit:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .btn-submit .spinner {
+            display: none;
+            width: 18px; height: 18px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            margin: 0 auto;
+        }
+        .btn-submit.loading .btn-text { display: none; }
+        .btn-submit.loading .spinner { display: block; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .btn-fill-sample {
+            width: 100%; padding: 10px; margin-bottom: 18px;
+            background: rgba(99,102,241,0.08);
+            border: 1px solid rgba(99,102,241,0.15);
+            border-radius: var(--radius-sm);
+            color: var(--accent);
+            font-family: inherit; font-size: 13px; font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-fill-sample:hover { background: rgba(99,102,241,0.15); }
+
+        /* ── Event Stream ────────────────────────────────────── */
+        .stream-toolbar {
+            display: flex; align-items: center; gap: 8px;
+        }
+        .btn-toolbar {
+            padding: 5px 12px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-2);
+            font-family: inherit; font-size: 11px; font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-toolbar:hover { background: rgba(255,255,255,0.1); color: var(--text-1); }
+
+        .event-stream {
+            height: 480px;
+            overflow-y: auto;
+            padding: 16px 20px;
+            scroll-behavior: smooth;
+        }
+        .event-stream::-webkit-scrollbar { width: 5px; }
+        .event-stream::-webkit-scrollbar-track { background: transparent; }
+        .event-stream::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+
+        .log-entry {
+            display: flex; gap: 12px;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+            animation: fadeIn 0.3s ease-out;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12.5px;
+            line-height: 1.6;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        .log-timestamp { color: var(--text-3); white-space: nowrap; flex-shrink: 0; min-width: 75px; }
+        .log-service {
+            font-weight: 600;
+            padding: 1px 8px;
+            border-radius: 4px;
+            white-space: nowrap;
+            flex-shrink: 0;
+            font-size: 11px;
+            line-height: 1.8;
+        }
+        .log-service.order_service { color: var(--svc-order); background: rgba(129,140,248,0.1); }
+        .log-service.inventory_service { color: var(--svc-inventory); background: rgba(52,211,153,0.1); }
+        .log-service.notification_service { color: var(--svc-notification); background: rgba(251,191,36,0.1); }
+        .log-service.analytics_service { color: var(--svc-analytics); background: rgba(192,132,252,0.1); }
+        .log-message { color: var(--text-2); word-break: break-word; }
+        .log-message.success { color: var(--success); }
+        .log-message.error { color: var(--error); }
+        .log-message.warning { color: var(--warning); }
+
+        .stream-empty {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            height: 100%;
+            color: var(--text-3);
+            text-align: center;
+            gap: 12px;
+        }
+        .stream-empty-icon { font-size: 40px; opacity: 0.4; }
+        .stream-empty-text { font-size: 14px; }
+
+        /* ── Orders Table ────────────────────────────────────── */
+        .orders-table { width: 100%; border-collapse: collapse; }
+        .orders-table th {
+            text-align: left;
+            padding: 12px 16px;
+            font-size: 11px; font-weight: 600; text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-3);
+            border-bottom: 1px solid var(--border);
+        }
+        .orders-table td {
+            padding: 14px 16px;
+            font-size: 13px;
+            color: var(--text-2);
+            border-bottom: 1px solid rgba(255,255,255,0.02);
+        }
+        .orders-table tr { transition: background 0.15s; }
+        .orders-table tbody tr:hover { background: rgba(255,255,255,0.02); }
+        .order-id { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--accent); }
+        .order-total { font-weight: 600; color: var(--text-1); }
+        .order-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .order-badge.created { background: rgba(52,211,153,0.1); color: var(--success); }
+
+        .table-empty {
+            text-align: center; padding: 40px 20px;
+            color: var(--text-3); font-size: 14px;
+        }
+
+        /* ── Toast ───────────────────────────────────────────── */
+        .toast-container {
+            position: fixed; top: 24px; right: 24px;
+            z-index: 1000; display: flex; flex-direction: column; gap: 10px;
+        }
+        .toast {
+            padding: 14px 20px;
+            border-radius: var(--radius-sm);
+            font-size: 13px; font-weight: 500;
+            backdrop-filter: blur(20px);
+            animation: toastIn 0.3s ease-out;
+            max-width: 380px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        .toast.success { background: rgba(52,211,153,0.15); border: 1px solid rgba(52,211,153,0.25); color: var(--success); }
+        .toast.error { background: rgba(248,113,113,0.15); border: 1px solid rgba(248,113,113,0.25); color: var(--error); }
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateX(30px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        /* ── Responsive ──────────────────────────────────────── */
+        @media (max-width: 900px) {
+            .main-grid { grid-template-columns: 1fr; }
+            .stats { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 600px) {
+            .app { padding: 12px 12px 32px; }
+            .stats { grid-template-columns: 1fr 1fr; }
+            .header { flex-direction: column; gap: 14px; align-items: flex-start; }
+            .item-row { grid-template-columns: 1fr 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <div class="header-icon">⚡</div>
+                <div>
+                    <div class="header-title">Event-Driven Architecture</div>
+                    <div class="header-sub">Sales System Prototype — Redis Pub/Sub</div>
+                </div>
+            </div>
+            <div class="connection-badge" id="connectionBadge">
+                <span class="connection-dot"></span>
+                <span id="connectionText">Connecting...</span>
+            </div>
+        </header>
+
+        <!-- Stats -->
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-label">Orders Created</div>
+                <div class="stat-value orders" id="statOrders">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Events Processed</div>
+                <div class="stat-value events" id="statEvents">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Errors Caught</div>
+                <div class="stat-value errors" id="statErrors">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Active Subscribers</div>
+                <div class="stat-value subscribers" id="statSubscribers">3</div>
+            </div>
+        </div>
+
+        <!-- Main Grid -->
+        <div class="main-grid">
+            <!-- Create Order Form -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">📦 Create Order</div>
+                </div>
+                <div class="card-body">
+                    <button class="btn-fill-sample" onclick="fillSampleData()">⚡ Fill Sample Data</button>
+
+                    <form id="orderForm" onsubmit="createOrder(event)">
+                        <div class="form-group">
+                            <label class="form-label">Customer Name</label>
+                            <input class="form-input" type="text" id="customerName" placeholder="e.g. Nguyen Van A" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Order Items</label>
+                            <div id="itemsContainer">
+                                <div class="item-row">
+                                    <input class="form-input item-product" type="text" placeholder="Product" required>
+                                    <input class="form-input item-qty" type="number" placeholder="Qty" min="1" value="1" required>
+                                    <input class="form-input item-price" type="number" placeholder="Price" min="0" required>
+                                    <button type="button" class="btn-remove-item" onclick="removeItem(this)" title="Remove">×</button>
+                                </div>
+                            </div>
+                            <button type="button" class="btn-add-item" onclick="addItem()">+ Add Item</button>
+                        </div>
+
+                        <button type="submit" class="btn-submit" id="btnSubmit">
+                            <span class="btn-text">🛒 Create Order</span>
+                            <div class="spinner"></div>
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Live Event Stream -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">📡 Live Event Stream</div>
+                    <div class="stream-toolbar">
+                        <button class="btn-toolbar" onclick="clearLogs()">Clear</button>
+                        <button class="btn-toolbar" id="btnAutoScroll" onclick="toggleAutoScroll()">Auto-scroll: ON</button>
+                    </div>
+                </div>
+                <div class="event-stream" id="eventStream">
+                    <div class="stream-empty" id="streamEmpty">
+                        <div class="stream-empty-icon">📡</div>
+                        <div class="stream-empty-text">Waiting for events...<br><span style="font-size:12px;color:var(--text-3)">Create an order to see real-time processing</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Order History -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">📋 Order History</div>
+            </div>
+            <div style="overflow-x:auto;">
+                <table class="orders-table">
+                    <thead>
+                        <tr>
+                            <th>Order ID</th>
+                            <th>Customer</th>
+                            <th>Items</th>
+                            <th>Total</th>
+                            <th>Subscribers</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ordersBody">
+                        <tr><td colspan="6" class="table-empty">No orders yet. Create one above!</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script>
+        // ── State ───────────────────────────────────────────────────────────
+        let orderCount = 0;
+        let eventCount = 0;
+        let errorCount = 0;
+        let autoScroll = true;
+        let orders = [];
+
+        // ── SSE Connection ──────────────────────────────────────────────────
+        function connectSSE() {
+            const badge = document.getElementById('connectionBadge');
+            const text = document.getElementById('connectionText');
+
+            const evtSource = new EventSource('/events');
+
+            evtSource.onopen = () => {
+                badge.classList.remove('disconnected');
+                text.textContent = 'Connected';
+            };
+
+            evtSource.onmessage = (e) => {
+                try {
+                    const log = JSON.parse(e.data);
+                    addLogEntry(log);
+                    eventCount++;
+                    if (log.level === 'error') errorCount++;
+                    updateStats();
+                } catch (err) {
+                    console.error('Failed to parse SSE message:', err);
+                }
+            };
+
+            evtSource.onerror = () => {
+                badge.classList.add('disconnected');
+                text.textContent = 'Reconnecting...';
+            };
+        }
+
+        // ── Log Entry ───────────────────────────────────────────────────────
+        function addLogEntry(log) {
+            const stream = document.getElementById('eventStream');
+            const empty = document.getElementById('streamEmpty');
+            if (empty) empty.remove();
+
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+
+            const time = new Date(log.timestamp).toLocaleTimeString('vi-VN');
+            const serviceLabel = {
+                'order_service': 'ORDER',
+                'inventory_service': 'INVENTORY',
+                'notification_service': 'NOTIFICATION',
+                'analytics_service': 'ANALYTICS'
+            }[log.service] || log.service;
+
+            const levelClass = log.level === 'error' ? 'error' : log.level === 'success' ? 'success' : log.level === 'warning' ? 'warning' : '';
+
+            entry.innerHTML = `
+                <span class="log-timestamp">${time}</span>
+                <span class="log-service ${log.service}">${serviceLabel}</span>
+                <span class="log-message ${levelClass}">${escapeHtml(log.message)}</span>
+            `;
+
+            stream.appendChild(entry);
+
+            if (autoScroll) {
+                stream.scrollTop = stream.scrollHeight;
+            }
+        }
+
+        // ── Create Order ────────────────────────────────────────────────────
+        async function createOrder(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btnSubmit');
+            btn.classList.add('loading');
+            btn.disabled = true;
+
+            const customerName = document.getElementById('customerName').value;
+            const rows = document.querySelectorAll('.item-row');
+            const items = [];
+
+            rows.forEach(row => {
+                const product = row.querySelector('.item-product').value;
+                const quantity = parseInt(row.querySelector('.item-qty').value);
+                const price = parseFloat(row.querySelector('.item-price').value);
+                if (product && quantity && price) {
+                    items.push({ product, quantity, price });
+                }
+            });
+
+            try {
+                const res = await fetch('/orders', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ customer_name: customerName, items })
+                });
+
+                const data = await res.json();
+
+                if (res.ok) {
+                    orderCount++;
+                    document.getElementById('statSubscribers').textContent = data.subscribers_notified || 3;
+                    updateStats();
+
+                    orders.unshift({
+                        id: data.order_id,
+                        customer: customerName,
+                        items: items.length,
+                        total: data.total,
+                        subscribers: data.subscribers_notified
+                    });
+                    renderOrders();
+
+                    showToast(`Order ${data.order_id.slice(0, 8)}... created!`, 'success');
+                    document.getElementById('orderForm').reset();
+                } else {
+                    showToast('Failed to create order', 'error');
+                }
+            } catch (err) {
+                showToast('Connection error: ' + err.message, 'error');
+            } finally {
+                btn.classList.remove('loading');
+                btn.disabled = false;
+            }
+        }
+
+        // ── Render Orders ───────────────────────────────────────────────────
+        function renderOrders() {
+            const tbody = document.getElementById('ordersBody');
+            if (orders.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="table-empty">No orders yet.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = orders.map(o => `
+                <tr>
+                    <td><span class="order-id">${o.id.slice(0, 13)}...</span></td>
+                    <td>${escapeHtml(o.customer)}</td>
+                    <td>${o.items} item(s)</td>
+                    <td class="order-total">${formatCurrency(o.total)}</td>
+                    <td>${o.subscribers}</td>
+                    <td><span class="order-badge created">Created</span></td>
+                </tr>
+            `).join('');
+        }
+
+        // ── Item Rows ───────────────────────────────────────────────────────
+        function addItem() {
+            const container = document.getElementById('itemsContainer');
+            const row = document.createElement('div');
+            row.className = 'item-row';
+            row.innerHTML = `
+                <input class="form-input item-product" type="text" placeholder="Product" required>
+                <input class="form-input item-qty" type="number" placeholder="Qty" min="1" value="1" required>
+                <input class="form-input item-price" type="number" placeholder="Price" min="0" required>
+                <button type="button" class="btn-remove-item" onclick="removeItem(this)" title="Remove">×</button>
+            `;
+            container.appendChild(row);
+        }
+
+        function removeItem(btn) {
+            const container = document.getElementById('itemsContainer');
+            if (container.children.length > 1) {
+                btn.closest('.item-row').remove();
+            }
+        }
+
+        // ── Fill Sample Data ────────────────────────────────────────────────
+        function fillSampleData() {
+            document.getElementById('customerName').value = 'Nguyen Van A';
+            const container = document.getElementById('itemsContainer');
+            container.innerHTML = '';
+
+            const samples = [
+                { product: 'Laptop Dell XPS 15', qty: 1, price: 35000000 },
+                { product: 'Wireless Mouse', qty: 2, price: 450000 },
+                { product: 'USB-C Hub', qty: 1, price: 890000 }
+            ];
+
+            samples.forEach(s => {
+                const row = document.createElement('div');
+                row.className = 'item-row';
+                row.innerHTML = `
+                    <input class="form-input item-product" type="text" placeholder="Product" value="${s.product}" required>
+                    <input class="form-input item-qty" type="number" placeholder="Qty" min="1" value="${s.qty}" required>
+                    <input class="form-input item-price" type="number" placeholder="Price" min="0" value="${s.price}" required>
+                    <button type="button" class="btn-remove-item" onclick="removeItem(this)" title="Remove">×</button>
+                `;
+                container.appendChild(row);
+            });
+
+            showToast('Sample data filled!', 'success');
+        }
+
+        // ── Helpers ─────────────────────────────────────────────────────────
+        function updateStats() {
+            document.getElementById('statOrders').textContent = orderCount;
+            document.getElementById('statEvents').textContent = eventCount;
+            document.getElementById('statErrors').textContent = errorCount;
+        }
+
+        function clearLogs() {
+            const stream = document.getElementById('eventStream');
+            stream.innerHTML = `
+                <div class="stream-empty" id="streamEmpty">
+                    <div class="stream-empty-icon">📡</div>
+                    <div class="stream-empty-text">Logs cleared. Waiting for events...</div>
+                </div>
+            `;
+        }
+
+        function toggleAutoScroll() {
+            autoScroll = !autoScroll;
+            document.getElementById('btnAutoScroll').textContent = `Auto-scroll: ${autoScroll ? 'ON' : 'OFF'}`;
+        }
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            container.appendChild(toast);
+            setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateX(30px)'; toast.style.transition = 'all 0.3s'; }, 3000);
+            setTimeout(() => toast.remove(), 3400);
+        }
+
+        function formatCurrency(n) {
+            return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(n);
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        // ── Init ────────────────────────────────────────────────────────────
+        connectSSE();
+    </script>
+</body>
+</html>

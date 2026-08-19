@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<!-- saved from url=(0029)https://pub.nndkhoa9.win/eda/ -->
+<html lang="vi"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bài tập Event-Driven Architecture</title>
+    <script>
+      tailwind = {
+        theme: {
+          extend: {
+            colors: {
+              cream: "#f8f1e7",
+              latte: "#ead9c6",
+              foam: "#fffaf3",
+              caramel: "#b97a3a",
+              roast: "#6f4b33",
+              espresso: "#2b1a12",
+              mocha: "#493125"
+            },
+            boxShadow: {
+              paper: "0 18px 45px rgba(43, 26, 18, 0.10)"
+            }
+          }
+        }
+      };
+    </script>
+    <script src="./Bài tập Event-Driven Architecture_files/saved_resource"></script>
+    <style>
+      @media print {
+        body {
+          background: #ffffff !important;
+        }
+
+        .print-break-inside-avoid {
+          break-inside: avoid;
+        }
+      }
+    </style>
+  <style>*, ::before, ::after{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/* ! tailwindcss v3.4.17 | MIT License | https://tailwindcss.com */*,::after,::before{box-sizing:border-box;border-width:0;border-style:solid;border-color:#e5e7eb}::after,::before{--tw-content:''}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;tab-size:4;font-family:ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0;padding:0}legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.mx-auto{margin-left:auto;margin-right:auto}.mb-3{margin-bottom:0.75rem}.mt-1{margin-top:0.25rem}.mt-3{margin-top:0.75rem}.mt-4{margin-top:1rem}.mt-5{margin-top:1.25rem}.mt-6{margin-top:1.5rem}.mt-7{margin-top:1.75rem}.flex{display:flex}.grid{display:grid}.min-h-screen{min-height:100vh}.max-w-3xl{max-width:48rem}.max-w-4xl{max-width:56rem}.max-w-5xl{max-width:64rem}.list-decimal{list-style-type:decimal}.list-disc{list-style-type:disc}.flex-col{flex-direction:column}.gap-2{gap:0.5rem}.gap-3{gap:0.75rem}.gap-6{gap:1.5rem}.space-y-2 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(0.5rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(0.5rem * var(--tw-space-y-reverse))}.space-y-4 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(1rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(1rem * var(--tw-space-y-reverse))}.space-y-6 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(1.5rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(1.5rem * var(--tw-space-y-reverse))}.rounded-lg{border-radius:0.5rem}.rounded-md{border-radius:0.375rem}.border{border-width:1px}.border-b{border-bottom-width:1px}.bg-\[\#fff7ea\]{--tw-bg-opacity:1;background-color:rgb(255 247 234 / var(--tw-bg-opacity, 1))}.bg-white\/55{background-color:rgb(255 255 255 / 0.55)}.p-4{padding:1rem}.p-5{padding:1.25rem}.px-5{padding-left:1.25rem;padding-right:1.25rem}.px-6{padding-left:1.5rem;padding-right:1.5rem}.py-7{padding-top:1.75rem;padding-bottom:1.75rem}.py-8{padding-top:2rem;padding-bottom:2rem}.pl-5{padding-left:1.25rem}.text-2xl{font-size:1.5rem;line-height:2rem}.text-3xl{font-size:1.875rem;line-height:2.25rem}.text-base{font-size:1rem;line-height:1.5rem}.text-sm{font-size:0.875rem;line-height:1.25rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-xs{font-size:0.75rem;line-height:1rem}.font-bold{font-weight:700}.font-semibold{font-weight:600}.uppercase{text-transform:uppercase}.leading-7{line-height:1.75rem}.leading-tight{line-height:1.25}.tracking-\[0\.16em\]{letter-spacing:0.16em}.tracking-\[0\.18em\]{letter-spacing:0.18em}.antialiased{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}@media (min-width: 640px){.sm\:grid-cols-3{grid-template-columns:repeat(3, minmax(0, 1fr))}.sm\:flex-row{flex-direction:row}.sm\:items-baseline{align-items:baseline}.sm\:justify-between{justify-content:space-between}.sm\:p-7{padding:1.75rem}.sm\:px-10{padding-left:2.5rem;padding-right:2.5rem}.sm\:px-8{padding-left:2rem;padding-right:2rem}.sm\:py-10{padding-top:2.5rem;padding-bottom:2.5rem}.sm\:py-12{padding-top:3rem;padding-bottom:3rem}.sm\:py-9{padding-top:2.25rem;padding-bottom:2.25rem}.sm\:text-5xl{font-size:3rem;line-height:1}.sm\:text-lg{font-size:1.125rem;line-height:1.75rem}}@media (min-width: 768px){.md\:grid-cols-2{grid-template-columns:repeat(2, minmax(0, 1fr))}}</style></head>
+  <body class="min-h-screen bg-cream text-espresso antialiased">
+    <main class="mx-auto max-w-5xl px-5 py-8 sm:px-8 sm:py-12">
+      <section class="rounded-lg border border-roast/20 bg-foam shadow-paper">
+        <div class="border-b border-roast/15 px-6 py-8 sm:px-10 sm:py-10">
+          <p class="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-caramel">
+            Software Architecture Assignment
+          </p>
+          <h1 class="max-w-4xl text-3xl font-bold leading-tight text-espresso sm:text-5xl">
+            Bài tập: Event-Driven Architecture
+          </h1>
+          <p class="mt-4 max-w-3xl text-base leading-7 text-mocha/85 sm:text-lg">
+            Thiết kế và hiện thực một prototype nhỏ để chứng minh cách áp dụng Event-Driven Architecture trong bài toán xử lý sau khi đơn hàng được tạo.
+          </p>
+
+          <div class="mt-7 grid gap-3 sm:grid-cols-3">
+            <div class="rounded-md border border-roast/20 bg-cream/70 p-4">
+              <p class="text-xs font-semibold uppercase tracking-[0.16em] text-roast/70">Thời gian</p>
+              <p class="mt-1 text-xl font-bold text-espresso">120 phút</p>
+            </div>
+            <div class="rounded-md border border-roast/20 bg-cream/70 p-4">
+              <p class="text-xs font-semibold uppercase tracking-[0.16em] text-roast/70">Hình thức</p>
+              <p class="mt-1 text-xl font-bold text-espresso">Làm theo nhóm</p>
+            </div>
+            <div class="rounded-md border border-roast/20 bg-cream/70 p-4">
+              <p class="text-xs font-semibold uppercase tracking-[0.16em] text-roast/70">Số thành viên</p>
+              <p class="mt-1 text-xl font-bold text-espresso">3 sinh viên</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="space-y-6 px-6 py-7 sm:px-10 sm:py-9">
+          <section class="print-break-inside-avoid rounded-lg border border-roast/20 bg-white/55 p-5 sm:p-7">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-baseline sm:justify-between">
+              <h2 class="text-2xl font-bold text-espresso">Phần 1. Tự tìm hiểu lý thuyết</h2>
+              <span class="text-sm font-semibold text-caramel">Event-Driven Architecture</span>
+            </div>
+
+            <p class="mt-4 leading-7 text-mocha/90">
+              Nhóm tự nghiên cứu Event-Driven Architecture ở mức đủ để có thể giải thích và áp dụng vào bài toán ở Phần 2.
+            </p>
+
+            <div class="mt-5 rounded-md border border-roast/15 bg-cream/60 p-5">
+              <p class="font-semibold text-espresso">Khi trình bày, nhóm cần làm rõ tối thiểu:</p>
+              <ul class="mt-3 list-disc space-y-2 pl-5 leading-7 text-mocha/90">
+                <li>Event-Driven Architecture giải quyết loại vấn đề gì trong thiết kế hệ thống.</li>
+                <li>Các thành phần cơ bản trong một hệ thống hướng sự kiện và cách chúng tương tác.</li>
+                <li>Sự khác nhau giữa synchronous communication và asynchronous communication.</li>
+                <li>Một sự kiện có thể được nhiều thành phần xử lý như thế nào.</li>
+                <li>Những vấn đề có thể phát sinh khi message/event không được xử lý như mong đợi.</li>
+              </ul>
+            </div>
+
+            <p class="mt-4 leading-7 text-mocha/90">
+              Nhóm được tự quyết định cách tổ chức phần trình bày. Không bắt buộc trình bày theo danh sách định nghĩa.
+            </p>
+          </section>
+
+          <section class="print-break-inside-avoid rounded-lg border border-roast/20 bg-white/55 p-5 sm:p-7">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-baseline sm:justify-between">
+              <h2 class="text-2xl font-bold text-espresso">Phần 2. Bài toán</h2>
+              <span class="text-sm font-semibold text-caramel">Sales System</span>
+            </div>
+
+            <div class="mt-5 space-y-4 leading-7 text-mocha/90">
+              <p>
+                Một hệ thống bán hàng hiện có chức năng tiếp nhận đơn hàng. Sau khi một đơn hàng được tạo thành công, hệ thống cần thực hiện thêm một số tác vụ liên quan đến đơn hàng đó.
+              </p>
+              <p>
+                Các tác vụ này không cần hoàn thành trước khi người dùng nhận được kết quả tạo đơn hàng. Một tác vụ có thể xử lý chậm, tạm thời không hoạt động hoặc gặp lỗi mà không nên làm chức năng tạo đơn hàng thất bại.
+              </p>
+              <p>
+                Trong tương lai, hệ thống có thể cần bổ sung thêm các chức năng khác cũng phản ứng khi đơn hàng được tạo, chẳng hạn phục vụ chăm sóc khách hàng, thống kê kinh doanh, đồng bộ dữ liệu hoặc các nghiệp vụ mở rộng khác.
+              </p>
+            </div>
+
+            <div class="mt-6 rounded-md border border-roast/15 bg-cream/60 p-5">
+              <p class="font-semibold text-espresso">Yêu cầu thực hiện:</p>
+              <ol class="mt-3 list-decimal space-y-2 pl-5 leading-7 text-mocha/90">
+                <li>Đề xuất kiến trúc sử dụng Event-Driven Architecture cho bài toán trên.</li>
+                <li>Implement một prototype chứng minh kiến trúc đề xuất hoạt động.</li>
+                <li>Thể hiện được asynchronous service calling: thao tác tạo đơn hàng không phải chờ toàn bộ tác vụ xử lý sau đó hoàn tất.</li>
+                <li>Thể hiện được fan-out: một sự kiện hoặc thông điệp liên quan đến việc tạo đơn hàng có thể được nhiều thành phần độc lập xử lý.</li>
+                <li>Thể hiện được việc một thành phần xử lý chậm hoặc lỗi không làm toàn bộ luồng tạo đơn hàng thất bại.</li>
+              </ol>
+            </div>
+
+            <div class="mt-6 rounded-md border border-caramel/30 bg-[#fff7ea] p-5">
+              <p class="font-semibold text-espresso">Nhóm tự quyết định:</p>
+              <ul class="mt-3 list-disc space-y-2 pl-5 leading-7 text-mocha/90">
+                <li>Cách chia service/component trong prototype.</li>
+                <li>Event/message cần sử dụng và nội dung dữ liệu đi kèm.</li>
+                <li>Thành phần nào tạo ra event/message và thành phần nào xử lý event/message.</li>
+                <li>Công nghệ hoặc cơ chế dùng để truyền event/message.</li>
+                <li>Cách chứng minh luồng xử lý là bất đồng bộ và có khả năng mở rộng thêm thành phần xử lý mới.</li>
+              </ul>
+            </div>
+          </section>
+
+          <section class="grid gap-6 md:grid-cols-2">
+            <div class="print-break-inside-avoid rounded-lg border border-roast/20 bg-white/55 p-5 sm:p-7">
+              <h2 class="text-2xl font-bold text-espresso">Yêu cầu demo</h2>
+              <ul class="mt-4 list-disc space-y-2 pl-5 leading-7 text-mocha/90">
+                <li>Chạy được prototype trên máy khi demo.</li>
+                <li>Tạo được một đơn hàng mẫu và quan sát được các xử lý phát sinh sau đó.</li>
+                <li>Chứng minh thao tác tạo đơn hàng trả kết quả trước khi các xử lý sau đó hoàn tất.</li>
+                <li>Chứng minh một lần tạo đơn hàng có thể kích hoạt nhiều xử lý độc lập.</li>
+                <li>Chứng minh khi một xử lý bị chậm hoặc lỗi, các phần còn lại vẫn có thể tiếp tục theo thiết kế của nhóm.</li>
+              </ul>
+            </div>
+
+            <div class="print-break-inside-avoid rounded-lg border border-roast/20 bg-white/55 p-5 sm:p-7">
+              <h2 class="text-2xl font-bold text-espresso">Deliverables</h2>
+              <ul class="mt-4 list-disc space-y-2 pl-5 leading-7 text-mocha/90">
+                <li>Source code prototype.</li>
+                <li>File README hướng dẫn cách chạy và cách demo.</li>
+                <li>Sơ đồ hoặc mô tả ngắn kiến trúc nhóm đề xuất.</li>
+                <li>Mô tả các quyết định chính: cách chia component, event/message, cơ chế truyền message và cách xử lý khi có lỗi.</li>
+                <li>Minh chứng demo: log, ảnh chụp màn hình hoặc video ngắn thể hiện các yêu cầu demo.</li>
+              </ul>
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+  
+
+</body></html>
