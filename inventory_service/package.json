@@ -1,0 +1,13 @@
+{
+  "name": "inventory-worker",
+  "version": "1.0.0",
+  "description": "Inventory Service — Bee Queue Worker",
+  "main": "worker.js",
+  "scripts": {
+    "start": "node worker.js"
+  },
+  "dependencies": {
+    "bee-queue": "^1.7.1",
+    "ioredis": "^5.4.1"
+  }
+}

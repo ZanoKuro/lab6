@@ -1,6 +1,6 @@
-# 📝 Script Thuyết Trình Demo — Lab6 Event-Driven Architecture
+# 📝 Script Thuyết Trình Demo — Lab6 Event-Driven Architecture (Bee Queue)
 
-> **Thời lượng ước tính:** 10-15 phút
+> **Thời lượng ước tính:** 12-18 phút
 > **Số người trình bày:** 1-3 (chia theo phần)
 > **Chuẩn bị trước:** Chạy `docker-compose up --build` và mở `http://localhost:8000`
 
@@ -10,12 +10,12 @@
 
 > 🎤 **Lời thoại:**
 
-*"Xin chào thầy/cô và các bạn. Hôm nay nhóm em sẽ trình bày bài tập về **Event-Driven Architecture** — áp dụng vào bài toán xử lý sau khi đơn hàng được tạo trong hệ thống bán hàng.*
+*"Xin chào thầy/cô và các bạn. Hôm nay nhóm em sẽ trình bày bài tập về **Event-Driven Architecture** — áp dụng vào bài toán xử lý sau khi đơn hàng được tạo trong hệ thống bán hàng, sử dụng **Redis Bee Queue** làm job queue.*
 
 *Bài trình bày gồm 3 phần:*
 - *Phần 1: Lý thuyết Event-Driven Architecture*
-- *Phần 2: Kiến trúc nhóm đề xuất*
-- *Phần 3: Demo live prototype chứng minh các yêu cầu"*
+- *Phần 2: Kiến trúc đề xuất với Bee Queue*
+- *Phần 3: Demo live trả lời 6 câu hỏi"*
 
 ---
 
@@ -29,268 +29,270 @@
 
 *Trong kiến trúc truyền thống, khi tạo đơn hàng, server phải lần lượt gọi: trừ kho, gửi email, ghi analytics... rồi mới trả response cho người dùng. Nếu 1 bước chậm hoặc lỗi → toàn bộ request thất bại.*
 
-*EDA giải quyết bằng cách **tách rời** (decouple) các tác vụ phản ứng ra khỏi luồng chính. Thay vì gọi trực tiếp, service chính chỉ cần **phát ra một sự kiện** (event), rồi trả response ngay. Các service khác tự lắng nghe và xử lý event đó một cách độc lập."*
+*EDA giải quyết bằng cách **tách rời** (decouple) các tác vụ phản ứng ra khỏi luồng chính. Thay vì gọi trực tiếp, service chính chỉ cần **đẩy job vào queue**, rồi trả response ngay. Các worker tự lắng nghe và xử lý job đó một cách độc lập."*
 
-### 2.2. Các thành phần cơ bản
-
-> 🎤 **Lời thoại:**
-
-*"Một hệ thống EDA gồm 3 thành phần chính:*
-
-| Thành phần | Vai trò | Ví dụ trong bài |
-|-----------|---------|-----------------|
-| **Producer** | Tạo và phát ra event | Order Service |
-| **Message Broker** | Trung gian truyền event | Redis Pub/Sub |
-| **Consumer** | Lắng nghe và xử lý event | Inventory, Notification, Analytics |
-
-*Producer **không biết** có bao nhiêu consumer, và consumer **không biết** ai đã tạo event. Chúng chỉ giao tiếp qua broker — đây gọi là **loose coupling**."*
-
-### 2.3. Sync vs Async Communication
+### 2.2. Tại sao chọn Bee Queue?
 
 > 🎤 **Lời thoại:**
 
-*"Sự khác nhau giữa synchronous và asynchronous:*
+*"Nhóm chọn **Bee Queue** thay vì Redis Pub/Sub thuần vì những lý do sau:*
 
-| | Synchronous | Asynchronous (EDA) |
+| Tiêu chí | Redis Pub/Sub | Bee Queue |
 |---|---|---|
-| **Cách gọi** | A gọi B, chờ B trả về | A gửi event, không chờ |
-| **Response** | Chậm (phải chờ tất cả) | Nhanh (trả ngay) |
-| **Lỗi lan truyền?** | Có — B lỗi thì A cũng lỗi | Không — B lỗi, A vẫn OK |
-| **Ví dụ** | REST API call trực tiếp | Redis Pub/Sub, RabbitMQ, Kafka |
+| **Lưu message** | ❌ Fire-and-forget | ✅ Lưu trong Redis |
+| **Retry khi lỗi** | ❌ Không | ✅ Built-in retries |
+| **Điều khiển worker** | ❌ Không | ✅ `isWorker` flag |
+| **Theo dõi job** | ❌ Không | ✅ Job events + progress |
+| **Job ID** | Phải tự tạo | ✅ Tự động gán |
 
-*Nhóm em sẽ demo chứng minh điều này ngay sau đây."*
+*Bee Queue là lightweight job queue cho Node.js, backed by Redis. Nó vẫn dùng Redis làm backend nhưng thêm các tính năng production-ready."*
 
-### 2.4. Một event được nhiều thành phần xử lý — Fan-out
-
-> 🎤 **Lời thoại:**
-
-*"Trong EDA, một event có thể được **nhiều consumer xử lý đồng thời** — gọi là **fan-out**. Ví dụ: 1 event `order_created` được cả Inventory, Notification, và Analytics nhận và xử lý song song.*
-
-*Điều này giúp hệ thống dễ mở rộng — muốn thêm chức năng mới (ví dụ loyalty points), chỉ cần thêm 1 consumer mới subscribe cùng channel, **không cần sửa code producer hay consumer cũ**."*
-
-### 2.5. Vấn đề khi event không xử lý được
+### 2.3. Các thành phần cơ bản
 
 > 🎤 **Lời thoại:**
 
-*"Khi message không xử lý như mong đợi, có thể xảy ra:*
-- ***Message bị mất** — nếu consumer chưa subscribe trước khi event được publish (Redis Pub/Sub không lưu trữ)*
-- ***Consumer lỗi** — event đã nhận nhưng xử lý thất bại*
-- ***Consumer chậm** — xử lý quá lâu, gây backlog*
+*"Hệ thống gồm:*
 
-*Trong prototype, nhóm giải quyết bằng: mỗi consumer bọc logic trong `try/except` — lỗi chỉ ảnh hưởng consumer đó, service không crash, log lỗi rồi tiếp tục lắng nghe. Trong production thực tế, sẽ cần thêm dead letter queue, retry mechanism, v.v."*
+| Thành phần | Vai trò | Config |
+|-----------|---------|--------|
+| **Order Service** | Producer — tạo job | `isWorker: false` |
+| **Inventory Worker** | Consumer — trừ kho | `isWorker: true` |
+| **Notification Worker** | Consumer — gửi email | `isWorker: true`, 50% lỗi |
+| **Analytics Worker** | Consumer — phân tích | `isWorker: true`, delay 5-8s |
+| **Redis** | Job store | AOF persistence |
+
+*Mỗi worker có queue riêng. Order Service fan-out: đẩy job vào 3 queue khác nhau."*
 
 ---
 
 ## PHẦN 3 — KIẾN TRÚC ĐỀ XUẤT (2 phút)
 
-> 🎤 **Lời thoại:**
-
-*"Giờ nhóm trình bày kiến trúc đề xuất cho bài toán."*
-
-> 📺 **Thao tác:** Mở file [README.md](file:///c:/Code/lab6/README.md) hoặc chiếu sơ đồ kiến trúc:
+> 📺 **Thao tác:** Chiếu sơ đồ kiến trúc:
 
 ```
 ┌────────────┐     POST /orders      ┌─────────────────┐
 │   Client   │ ──────────────────────▶│  Order Service  │
-│ (cURL/UI)  │ ◀───── response ──────│    (FastAPI)     │
-└────────────┘    (trả ngay lập tức)  └────────┬────────┘
+│ (Web UI)   │ ◀── response ngay ────│  (Express.js)   │
+└────────────┘                        └────────┬────────┘
                                                │
-                                        PUBLISH │ order_created
+                                    createJob()│→ 3 queues
                                                ▼
                                     ┌──────────────────┐
-                                    │   Redis Pub/Sub  │
-                                    │  (Message Broker) │
+                                    │    Redis 7        │
+                                    │  (AOF Persistence)│
+                                    │  ┌──────────────┐ │
+                                    │  │inventory_queue│ │
+                                    │  │notif_queue    │ │
+                                    │  │analytics_queue│ │
+                                    │  └──────────────┘ │
                                     └──┬───────┬───────┘
                                        │       │       │
-                          SUBSCRIBE    │       │       │    SUBSCRIBE
+                         process()     │       │       │    process()
                     ┌──────────────────┘       │       └──────────────────┐
                     ▼                          ▼                          ▼
           ┌─────────────────┐     ┌──────────────────────┐    ┌──────────────────┐
-          │Inventory Service│     │Notification Service  │    │Analytics Service  │
-          │   (Consumer)    │     │   (Consumer)         │    │   (Consumer)      │
-          │ ✅ Trừ tồn kho  │     │ ⚠️ 50% lỗi giả lập   │    │ ⏳ Delay 5-8s     │
+          │Inventory Worker │     │Notification Worker   │    │Analytics Worker   │
+          │ isWorker: true  │     │ isWorker: true       │    │ isWorker: true    │
+          │ ✅ Trừ tồn kho  │     │ ⚠️ 50% lỗi + retry   │    │ ⏳ Delay 5-8s     │
           └─────────────────┘     └──────────────────────┘    └──────────────────┘
 ```
 
 > 🎤 **Lời thoại:**
 
-*"Nhóm chia thành 5 component chạy trong Docker container độc lập:*
+*"Khác với Pub/Sub broadcast, ở đây Order Service chủ động đẩy job vào 3 queue riêng. Mỗi worker chỉ process queue của mình — đây là **fan-out có kiểm soát**.*
 
-1. ***Redis** — message broker, dùng Pub/Sub truyền event qua channel `order_created`*
-2. ***Order Service** (FastAPI) — producer duy nhất. Nhận request tạo đơn, publish event, trả response ngay*
-3. ***Inventory Service** — consumer, trừ tồn kho, hoạt động bình thường*
-4. ***Notification Service** — consumer, gửi email. **Giả lập lỗi 50%** để chứng minh fault isolation*
-5. ***Analytics Service** — consumer, ghi phân tích. **Giả lập delay 5-8 giây** để chứng minh async*
-
-*Nhóm chọn Redis Pub/Sub vì đơn giản, phù hợp prototype, và có fan-out tự nhiên — 1 publish sẽ được tất cả subscriber nhận.*
-
-*Tất cả được đóng gói bằng Docker Compose, chỉ cần 1 lệnh `docker-compose up` là chạy."*
+*Redis cấu hình AOF persistence — tất cả job được ghi vào disk. Nếu Redis restart, data được khôi phục từ AOF file."*
 
 ---
 
-## PHẦN 4 — DEMO LIVE (5-7 phút)
+## PHẦN 4 — DEMO LIVE (7-10 phút)
 
 ### 📺 Chuẩn bị màn hình
 
-> **Thao tác:** Mở browser `http://localhost:8000` — web dashboard hiển thị form tạo đơn hàng bên trái và Live Event Stream bên phải.
+> **Thao tác:** Mở browser `http://localhost:8000`
 
 > 🎤 **Lời thoại:**
 
-*"Giờ nhóm sẽ demo live. Đây là web dashboard của hệ thống. Bên trái là form tạo đơn hàng, bên phải là **Live Event Stream** hiển thị real-time các event từ tất cả service."*
+*"Đây là web dashboard. Có 3 tab: Dashboard để tạo đơn hàng, Admin Panel để xem config Redis và trạng thái service, và Job Inspector để xem chi tiết từng job."*
 
 ---
 
-### Demo 4.1 — Tạo đơn hàng + Asynchronous Service Calling
-
-> **Đề bài:** *"Chứng minh thao tác tạo đơn hàng trả kết quả trước khi các xử lý sau đó hoàn tất."*
+### Demo 4.1 — Câu hỏi 6: Mỗi event có ID không?
 
 > 📺 **Thao tác:**
-> 1. Nhấn nút **"⚡ Fill Sample Data"** để điền dữ liệu mẫu
-> 2. Nhấn nút **"🛒 Create Order"**
-> 3. **Chỉ ngay vào response** hiện ra — trả về rất nhanh
-> 4. **Chỉ vào Live Event Stream** — Analytics vẫn đang ⏳ processing
+> 1. Fill Sample Data → Create Order
+> 2. Quan sát Live Event Stream → chỉ vào `[Job #1]`, `[Job #2]`, `[Job #3]`
+> 3. Mở tab **Job Inspector** → chỉ vào cột Job ID
 
 > 🎤 **Lời thoại:**
 
-*"Em nhấn tạo đơn hàng... Mời thầy/cô quan sát:*
+*"Mời thầy/cô quan sát: mỗi event đều có ID. Trong Live Event Stream, mỗi dòng log hiển thị `[Job #1]`, `[Job #2]`, `[Job #3]` — đây là ID do Bee Queue tự động gán (auto-increment).*
 
-*→ **Response đã trả về ngay lập tức** — trong vài trăm millisecond.*
-
-*→ Nhưng nhìn vào Live Event Stream, **Analytics Service vẫn đang xử lý** — nó hiện dòng '⏳ Heavy processing started, estimated 6-7 giây'.*
-
-*Điều này chứng minh: **thao tác tạo đơn hàng KHÔNG phải chờ** các consumer xử lý xong. Order Service chỉ publish event rồi trả response ngay — đây chính là **asynchronous service calling**.*
-
-*...(chờ vài giây)... Giờ Analytics đã xong — hiện dòng '✅ Analytics complete' sau ~7 giây. Nhưng người dùng đã nhận response từ lâu rồi."*
-
-> [!TIP]
-> **Điểm nhấn cho giảng viên:** Response trả trong ~200ms, Analytics mất 5-8s → client không bị block.
+*Mở tab Job Inspector — mỗi job hiển thị ID, queue, status, progress. Nhấn View để xem payload — bên trong còn có `event_id` là UUID do Order Service tạo."*
 
 ---
 
-### Demo 4.2 — Fan-out
-
-> **Đề bài:** *"Chứng minh một lần tạo đơn hàng có thể kích hoạt nhiều xử lý độc lập."*
+### Demo 4.2 — Câu hỏi 5: Xem service chạy như thế nào (payload)?
 
 > 📺 **Thao tác:**
-> 1. Vẫn nhìn vào kết quả vừa rồi trên Live Event Stream
-> 2. Chỉ vào **từng nhóm event** theo service
+> 1. Vẫn ở tab Job Inspector
+> 2. Nhấn **View** trên 1 job → modal hiện ra
+> 3. Chỉ vào payload JSON
 
 > 🎤 **Lời thoại:**
 
-*"Tiếp theo, mời thầy/cô quan sát Live Event Stream. Từ **1 đơn hàng duy nhất**, có **3 service độc lập** đã nhận và xử lý:*
+*"Đây là Job Inspector — mỗi job hiển thị đầy đủ thông tin:
+- **Job ID**: #1, #2, #3...
+- **Queue**: job đang ở queue nào
+- **Status**: created, succeeded, failed, retrying
+- **Progress**: phần trăm xử lý
+- **Payload**: toàn bộ dữ liệu JSON — event_id, event_type, data gồm order_id, customer, items, total*
 
-1. *🟢 **order_service** — tạo order, publish event → '3 subscribers received'*
-2. *🔵 **inventory_service** — trừ tồn kho: Laptop -1, Mouse -2, Hub -1*
-3. *🟡 **notification_service** — gửi email cho khách hàng*
-4. *🟣 **analytics_service** — ghi phân tích, xử lý nặng*
-
-*Mỗi service xử lý **độc lập, song song**, không biết nhau. Đây chính là **fan-out** — 1 event publish, nhiều subscriber nhận.*
-
-*Đặc biệt, nếu muốn thêm chức năng mới — ví dụ loyalty points — chỉ cần tạo service mới subscribe channel `order_created`, **không cần sửa code** Order Service hay bất kỳ consumer nào. Đây tuân thủ **Open/Closed Principle**."*
+*Nhấn View → thấy payload chi tiết và result sau khi xử lý xong."*
 
 ---
 
-### Demo 4.3 — Fault Isolation
-
-> **Đề bài:** *"Chứng minh khi một xử lý bị chậm hoặc lỗi, các phần còn lại vẫn có thể tiếp tục."*
+### Demo 4.3 — Câu hỏi 1: Redis cấu hình gì?
 
 > 📺 **Thao tác:**
-> 1. Tạo thêm **3-4 đơn hàng liên tiếp** (nhấn Fill Sample Data → Create Order, lặp lại)
-> 2. Quan sát Live Event Stream — sẽ thấy Notification ❌ lỗi ở một số đơn
+> 1. Chuyển sang tab **Admin Panel**
+> 2. Chỉ vào phần **Redis Configuration**
 
 > 🎤 **Lời thoại:**
 
-*"Giờ em sẽ tạo thêm vài đơn hàng để chứng minh fault isolation. Notification Service được thiết kế với **50% xác suất lỗi** — giả lập tình huống SMTP server down.*
+*"Mời thầy/cô xem tab Admin Panel — phần Redis Configuration:*
 
-*(tạo 3-4 đơn hàng...)*
+- ***Connection:** host=redis, port=6379*
+- ***Queue Settings:** isWorker=false (Order Service chỉ là producer), stallInterval=5000ms (kiểm tra job bị stuck mỗi 5s)*
+- ***Persistence:** appendonly=yes (bật AOF), appendfsync=everysec (flush mỗi giây), maxmemory-policy=noeviction (không tự xoá key)*
 
-*Mời thầy/cô quan sát Live Event Stream:*
-
-*→ Có đơn hàng Notification báo **❌ Failed to send email — SMTP server unavailable***
-
-*→ Nhưng nhìn ngay bên dưới:*
-- ***Inventory Service vẫn ✅** — trừ kho bình thường*
-- ***Analytics Service vẫn ✅** — ghi phân tích bình thường*
-- ***Order Service vẫn trả response thành công** — người dùng không biết notification bị lỗi*
-
-*Và quan trọng nhất: Notification Service **không crash**. Nó báo lỗi xong, hiện dòng '⚡ Service still running — waiting for next event...' rồi tiếp tục lắng nghe đơn hàng tiếp theo.*
-
-*Đây chính là **fault isolation** — lỗi được **cô lập** trong service gặp lỗi, không lan ra toàn hệ thống."*
-
-> [!TIP]
-> **Nếu không thấy lỗi:** Tạo thêm đơn hàng (xác suất 50%, nên 3-5 đơn là chắc chắn thấy lỗi).
-
-> 📺 **Thao tác bổ sung (nếu cần):** Mở terminal, chạy lệnh xem log Notification:
-> ```powershell
-> docker logs eda-notification-service
-> ```
-> Chỉ ra dòng ❌ lỗi xen kẽ ✅ thành công, service vẫn chạy liên tục.
+*Cấu hình này đảm bảo mọi job được lưu vào disk — không bị mất khi service restart."*
 
 ---
 
-## PHẦN 5 — GIẢI THÍCH CODE CHÍNH (2 phút, tuỳ chọn)
+### Demo 4.4 — Câu hỏi 2: Có điều khiển được các subscriber không?
 
-> 🎤 **Lời thoại (nếu giảng viên hỏi):**
+> 📺 **Thao tác:**
+> 1. Vẫn ở Admin Panel → chỉ phần Worker Services Status
+> 2. Chạy lệnh: `docker stop eda-notification-service`
+> 3. Tạo 1 đơn hàng mới
+> 4. Quan sát: inventory và analytics xử lý, notification nằm chờ
+> 5. Chạy: `docker start eda-notification-service`
+> 6. Quan sát: notification bắt đầu xử lý job chờ
 
-### Producer — Order Service
+> 🎤 **Lời thoại:**
 
-*"Order Service dùng FastAPI. Khi nhận request, nó tạo event rồi gọi `redis_client.publish()` để phát lên channel `order_created`. Hàm publish trả về số subscriber đã nhận event, rồi service trả response ngay — **không có bất kỳ lệnh chờ nào**."*
+*"Bee Queue cho phép điều khiển subscriber bằng `isWorker` flag:*
 
-```python
-# order_service/main.py — dòng 141-156
-event_json = json.dumps(event)
-num_subscribers = redis_client.publish(CHANNEL_ORDER, event_json)  # Publish rồi đi tiếp
+- *`isWorker: true` → worker lắng nghe và xử lý job*
+- *`isWorker: false` → worker KHÔNG xử lý, chỉ tạo job*
 
-# Trả response ngay — KHÔNG chờ consumer xử lý
-return {
-    "message": "Order created successfully. Processing in background.",
-    "subscribers_notified": num_subscribers,
+*Em sẽ demo: stop notification service → tạo đơn hàng → chỉ inventory và analytics xử lý, notification job nằm chờ trong queue.*
+
+*(stop, tạo order, quan sát)*
+
+*Bây giờ start lại notification → nó tự nhận job đang chờ và xử lý. Đây chứng minh ta có thể **điều khiển** service nào nhận job, service nào không."*
+
+---
+
+### Demo 4.5 — Câu hỏi 3: Thêm service không sub vào channel?
+
+> 🎤 **Lời thoại:**
+
+*"Hoàn toàn được. Trong docker-compose, chỉ cần set `IS_WORKER=false`:*
+
+```yaml
+environment:
+  - IS_WORKER=false
+```
+
+*Service sẽ kết nối Redis bình thường nhưng **không gọi `queue.process()`** — nên không nhận job nào. Trong code:*
+
+```javascript
+if (IS_WORKER) {
+    queue.process(async (job) => { ... }); // Xử lý job
+} else {
+    console.log('NON-WORKER mode — will NOT process jobs');
 }
 ```
 
-### Consumer — Cấu trúc chung
-
-*"Mỗi consumer subscribe channel bằng `pubsub.subscribe()`, rồi lặp vô hạn lắng nghe event. Logic xử lý bọc trong `try/except` — nếu lỗi thì log rồi tiếp tục lặp, **không bao giờ crash**."*
-
-```python
-# Cấu trúc chung của mỗi consumer
-pubsub.subscribe("order_created")
-for message in pubsub.listen():        # Vòng lặp vô hạn
-    try:
-        event = json.loads(message["data"])
-        handle_order_created(event)     # Xử lý event
-    except Exception as e:
-        print(f"❌ Error: {e}")         # Log lỗi
-        # ← Tiếp tục vòng lặp, KHÔNG crash
-```
-
-### Lỗi giả lập — Notification
-
-```python
-# notification_service/main.py — dòng 18, 50
-FAILURE_RATE = 0.5  # 50% xác suất lỗi
-if random.random() < FAILURE_RATE:
-    print("❌ Failed to send email — SMTP server unavailable")
-    return  # Chỉ return, không raise exception, service tiếp tục
-```
+*Service này có thể dùng để monitor queue, tạo job, nhưng không consume."*
 
 ---
 
-## PHẦN 6 — TỔNG KẾT (1 phút)
+### Demo 4.6 — Câu hỏi 4: Service sập thì sao? Có lưu message không?
+
+> 📺 **Thao tác:**
+> 1. Chạy lệnh: `docker stop eda-inventory-service`
+> 2. Tạo 1-2 đơn hàng
+> 3. Mở Admin Panel → Queue Health → thấy `inventory_queue: waiting: 1-2`
+> 4. Chạy: `docker start eda-inventory-service`
+> 5. Quan sát Live Event Stream → inventory bắt đầu xử lý job cũ
 
 > 🎤 **Lời thoại:**
 
-*"Tổng kết, nhóm đã chứng minh được cả **5 yêu cầu** của đề bài:*
+*"Đây là điểm mạnh nhất của Bee Queue so với Pub/Sub. Em sẽ stop inventory service, rồi tạo đơn hàng.*
 
-| # | Yêu cầu | Đã chứng minh bằng |
-|---|---------|---------------------|
-| 1 | Đề xuất kiến trúc EDA | Sơ đồ kiến trúc 5 component + Redis Pub/Sub |
-| 2 | Implement prototype | Docker Compose chạy 5 container |
-| 3 | **Async service calling** | Response ~200ms, Analytics mất 5-8s sau đó |
-| 4 | **Fan-out** | 1 event → 3 consumer nhận song song |
-| 5 | **Fault isolation** | Notification lỗi 50%, nhưng hệ thống vẫn OK |
+*(stop container, tạo order)*
 
-*Công nghệ sử dụng: Python 3.11, FastAPI, Redis 7 Pub/Sub, Docker Compose.*
+*Mời thầy/cô xem Admin Panel → Queue Health: `inventory_queue` có `waiting: 1` — job đang nằm chờ trong Redis, **không bị mất**.*
+
+*Giờ em start lại inventory...*
+
+*(start container)*
+
+*Quan sát Live Event Stream: inventory worker khởi động → tự nhận job đang chờ → xử lý bình thường!*
+
+*Điều này xảy ra được vì:*
+1. *Redis bật **AOF persistence** — ghi mọi write vào disk*
+2. *Bee Queue lưu job trong Redis **list/hash** — không phải fire-and-forget như Pub/Sub*
+3. *Worker dùng `queue.process()` — tự pull job từ queue khi start*
+
+*Nếu dùng Redis Pub/Sub thuần, message sẽ bị **mất hoàn toàn** vì không có ai subscribe lúc publish."*
+
+> [!TIP]
+> **Điểm nhấn:** So sánh trực tiếp Pub/Sub (mất message) vs Bee Queue (lưu + khôi phục).
+
+---
+
+### Demo 4.7 — Async + Fan-out + Fault Isolation (bonus)
+
+> 📺 **Thao tác:**
+> 1. Tạo 3-5 đơn hàng liên tiếp
+> 2. Quan sát Live Event Stream
+
+> 🎤 **Lời thoại:**
+
+*"Cuối cùng, em demo nhanh 3 tính năng cốt lõi:*
+
+1. ***Async:** Response trả trong ~200ms, Analytics mất 5-8s → client không bị block*
+2. ***Fan-out:** 1 order → 3 job vào 3 queue → 3 worker xử lý song song*
+3. ***Fault Isolation:** Notification lỗi 50%, nhưng:*
+   - *Inventory vẫn ✅*
+   - *Analytics vẫn ✅*
+   - *Order vẫn trả response thành công*
+   - *Bee Queue **tự retry** notification job (hiện dòng 'retrying')*
+
+*Notification không crash — nó throw error, Bee Queue bắt lỗi, retry tối đa 3 lần với backoff 2 giây."*
+
+---
+
+## PHẦN 5 — TỔNG KẾT (1 phút)
+
+> 🎤 **Lời thoại:**
+
+*"Tổng kết, nhóm đã trả lời được cả **6 câu hỏi**:*
+
+| # | Câu hỏi | Trả lời |
+|---|---------|---------|
+| 1 | Redis cấu hình gì? | AOF persistence, isWorker, stallInterval — xem trên Admin Panel |
+| 2 | Điều khiển subscriber? | ✅ Bằng `isWorker` flag — demo stop/start container |
+| 3 | Service không sub? | ✅ Set `IS_WORKER=false` → không gọi `queue.process()` |
+| 4 | Service sập, lưu message? | ✅ Bee Queue lưu job trong Redis, AOF ghi disk — demo stop/start |
+| 5 | Xem payload? | ✅ Job Inspector — ID, payload JSON, status, progress, result |
+| 6 | Event có ID? | ✅ `job.id` (auto) + `event_id` (UUID) |
+
+*Công nghệ: Node.js 20, Express.js, Bee Queue, Redis 7 (AOF), Docker Compose.*
 
 *Cảm ơn thầy/cô đã lắng nghe. Nhóm xin nhận câu hỏi."*
 
@@ -298,22 +300,18 @@ if random.random() < FAILURE_RATE:
 
 ## 📌 CÂU HỎI CÓ THỂ GẶP + GỢI Ý TRẢ LỜI
 
-### ❓ "Tại sao chọn Redis Pub/Sub mà không phải RabbitMQ/Kafka?"
+### ❓ "Tại sao không dùng BullMQ thay vì Bee Queue?"
 
-> *"Redis Pub/Sub đơn giản, phù hợp prototype. Không cần cài thêm tool. Fan-out tự nhiên — publish 1 lần, tất cả subscriber nhận. Trong production thực tế, nếu cần đảm bảo message không mất, sẽ dùng RabbitMQ hoặc Kafka có message persistence."*
+> *"Bee Queue nhẹ hơn (~1000 dòng code), phù hợp prototype. BullMQ mạnh hơn nhưng phức tạp hơn (priority queues, rate limiting, job flows). Cho bài lab này, Bee Queue đủ để demo tất cả concept."*
 
-### ❓ "Redis Pub/Sub có nhược điểm gì?"
+### ❓ "Bee Queue khác gì Redis Streams?"
 
-> *"Không lưu trữ message — nếu consumer chưa subscribe khi event publish thì sẽ mất event. Không có acknowledge mechanism — không biết consumer đã xử lý thành công chưa. Trong production sẽ cần Redis Streams hoặc RabbitMQ để khắc phục."*
+> *"Redis Streams là native Redis feature (XADD/XREAD), cần tự implement retry/progress. Bee Queue là abstraction layer — cung cấp API level cao hơn: `createJob()`, `process()`, `retries()`, `reportProgress()`. Trade-off: thêm dependency nhưng đơn giản hơn nhiều."*
 
-### ❓ "Nếu Notification luôn lỗi thì sao?"
+### ❓ "Job retry hoạt động thế nào?"
 
-> *"Trong prototype, nó chỉ log lỗi rồi bỏ qua. Trong production, sẽ cần thêm: retry mechanism (thử lại 3 lần), dead letter queue (lưu message lỗi để xử lý sau), và alerting (thông báo cho admin)."*
+> *"Khi worker throw error, Bee Queue tự move job về waiting list. Cấu hình: `job.retries(3).backoff('fixed', 2000)` — retry tối đa 3 lần, mỗi lần chờ 2 giây. Nếu hết retry → job chuyển sang trạng thái 'failed'. Demo: Notification service lỗi 50%, thấy dòng 'retrying' trên event stream."*
 
-### ❓ "Consumer xử lý chậm có ảnh hưởng event khác không?"
+### ❓ "Stalled job là gì?"
 
-> *"Có — vì mỗi consumer là single-threaded. Ví dụ Analytics mất 7s xử lý event 1, thì event 2 phải chờ. Để giải quyết, có thể scale horizontally — chạy nhiều instance của cùng 1 consumer."*
-
-### ❓ "Thêm consumer mới như thế nào?"
-
-> *"Tạo file Python mới, subscribe channel `order_created`, thêm service vào `docker-compose.yml`. Không cần sửa Order Service hay consumer cũ. Em có thể demo tạo consumer mới ngay nếu thầy/cô muốn."*
+> *"Stalled job = job bị 'kẹt' — worker nhận job nhưng không heartbeat (vì crash hoặc event loop bị block). Bee Queue kiểm tra mỗi `stallInterval` (5s), nếu phát hiện stalled job → re-enqueue để worker khác xử lý. Đảm bảo at-least-once delivery."*

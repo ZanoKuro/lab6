@@ -1,0 +1,16 @@
+{
+  "name": "order-service",
+  "version": "1.0.0",
+  "description": "Order Service — Producer + Web Dashboard (Bee Queue + Express)",
+  "main": "main.js",
+  "scripts": {
+    "start": "node main.js",
+    "dev": "node --watch main.js"
+  },
+  "dependencies": {
+    "bee-queue": "^1.7.1",
+    "express": "^4.21.0",
+    "ioredis": "^5.4.1",
+    "uuid": "^10.0.0"
+  }
+}

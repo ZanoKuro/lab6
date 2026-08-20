@@ -1,13 +1,12 @@
-# 📦 Event-Driven Architecture — Sales System Prototype
+# 📦 Event-Driven Architecture — Sales System (Redis Bee Queue)
 
-![Python](https://img.shields.io/badge/Python-3.11-blue?logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?logo=fastapi&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-20-339933?logo=nodedotjs&logoColor=white)
+![Express](https://img.shields.io/badge/Express-4.21-000000?logo=express&logoColor=white)
 ![Redis](https://img.shields.io/badge/Redis-7.0-DC382D?logo=redis&logoColor=white)
+![Bee Queue](https://img.shields.io/badge/Bee_Queue-1.7-yellow)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
 
-Prototype hệ thống bán hàng áp dụng **Event-Driven Architecture (EDA)** sử dụng **Redis Pub/Sub** làm message broker. Khi một đơn hàng được tạo, hệ thống phát ra event `order_created` và các service độc lập xử lý bất đồng bộ.
-
-Dự án bao gồm một **Web Dashboard** hiển thị luồng sự kiện (Live Event Stream) theo thời gian thực.
+Prototype hệ thống bán hàng áp dụng **Event-Driven Architecture (EDA)** sử dụng **Redis Bee Queue** làm job queue. Khi đơn hàng được tạo, Order Service fan-out job vào 3 queue riêng biệt, mỗi worker service xử lý queue của mình một cách độc lập.
 
 ---
 
@@ -15,8 +14,8 @@ Dự án bao gồm một **Web Dashboard** hiển thị luồng sự kiện (Liv
 - [1. Kiến trúc hệ thống](#1-kiến-trúc-hệ-thống)
 - [2. Các thành phần](#2-các-thành-phần)
 - [3. Quyết định kiến trúc](#3-quyết-định-kiến-trúc)
-- [4. Hướng dẫn chạy (Local)](#4-hướng-dẫn-chạy-local)
-- [5. Hướng dẫn Demo](#5-hướng-dẫn-demo)
+- [4. Hướng dẫn chạy](#4-hướng-dẫn-chạy)
+- [5. Câu hỏi Demo](#5-câu-hỏi-demo)
 - [6. Event Schema](#6-event-schema)
 
 ---
@@ -25,106 +24,158 @@ Dự án bao gồm một **Web Dashboard** hiển thị luồng sự kiện (Liv
 
 ```mermaid
 graph TD
-    Client[Client / Web Dashboard] -->|POST /orders| OrderService(Order Service - FastAPI)
+    Client["Client / Web Dashboard"] -->|POST /orders| OrderService("Order Service - Express.js")
     OrderService -->|Response ngay lập tức| Client
     
-    OrderService -.->|PUBLISH 'order_created'| Redis[(Redis Pub/Sub)]
+    OrderService -.->|"createJob()"| Q1["inventory_queue"]
+    OrderService -.->|"createJob()"| Q2["notification_queue"]
+    OrderService -.->|"createJob()"| Q3["analytics_queue"]
     
-    Redis -.->|SUBSCRIBE| InventoryService(Inventory Service)
-    Redis -.->|SUBSCRIBE| NotificationService(Notification Service)
-    Redis -.->|SUBSCRIBE| AnalyticsService(Analytics Service)
+    Q1 & Q2 & Q3 --- Redis[("Redis 7 + AOF Persistence")]
     
-    InventoryService -->|✅ Trừ tồn kho| Logs
-    NotificationService -->|⚠️ 50% lỗi giả lập| Logs
-    AnalyticsService -->|⏳ Delay 5-8s| Logs
+    Q1 -.->|"queue.process()"| InventoryService("Inventory Worker")
+    Q2 -.->|"queue.process()"| NotificationService("Notification Worker")
+    Q3 -.->|"queue.process()"| AnalyticsService("Analytics Worker")
+    
+    InventoryService -->|"✅ Trừ tồn kho"| Logs
+    NotificationService -->|"⚠️ 50% lỗi + retry"| Logs
+    AnalyticsService -->|"⏳ Delay 5-8s"| Logs
 ```
 
 ## 2. Các thành phần
 
-| Service | Vai trò | Hành vi đặc biệt |
-|---------|---------|------------------|
-| **Order Service** | Nhận đơn hàng, publish event | Trả response ngay, không chờ consumer |
-| **Inventory Service** | Trừ tồn kho | Hoạt động bình thường (~0.5s/item) |
-| **Notification Service**| Gửi email thông báo | **50% xác suất lỗi** — demo fault isolation |
-| **Analytics Service** | Ghi nhận phân tích | **Delay 5-8 giây** — demo async |
-| **Redis** | Message broker | Channel: `order_created` và `service_logs` |
+| Service | Vai trò | Bee Queue Config | Hành vi đặc biệt |
+|---------|---------|-----------------|-------------------|
+| **Order Service** | Producer — tạo đơn hàng, fan-out job | `isWorker: false` | Đẩy job vào 3 queue, trả response ngay |
+| **Inventory Worker** | Worker — trừ tồn kho | `isWorker: true` | Progress reporting theo item |
+| **Notification Worker** | Worker — gửi email | `isWorker: true` | **50% lỗi**, retry 3 lần tự động |
+| **Analytics Worker** | Worker — phân tích | `isWorker: true` | **Delay 5-8s**, progress 10 bước |
+| **Redis** | Job store + Message broker | AOF persistence | Data không mất khi restart |
 
 ---
 
 ## 3. Quyết định kiến trúc
 
-- **Tách biệt (Decoupling):** Order Service là producer duy nhất — tách biệt logic tạo đơn hàng khỏi logic xử lý sau đó. Mỗi tác vụ phản ứng (inventory, notification, analytics) là một consumer độc lập, chạy trong container riêng.
-- **Cơ chế truyền message:** Sử dụng **Redis Pub/Sub**. Một event publish lên channel sẽ được tất cả subscriber nhận (**fan-out** tự nhiên).
-- **Fault Isolation (Cô lập lỗi):** Mỗi consumer bọc logic xử lý trong `try/except`. Service không crash khi gặp lỗi — log lỗi rồi tiếp tục lắng nghe. Order Service không bị ảnh hưởng nếu consumer lỗi.
-- **Khả năng mở rộng (Scalability):** Thêm chức năng mới chỉ cần tạo service mới subscribe channel `order_created`, hoàn toàn tuân thủ *Open/Closed Principle*.
+### Tại sao Bee Queue thay vì Redis Pub/Sub?
+
+| Tiêu chí | Redis Pub/Sub | Bee Queue |
+|---|---|---|
+| **Message persistence** | ❌ Fire-and-forget | ✅ Lưu trong Redis |
+| **Retry khi lỗi** | ❌ Không | ✅ Built-in retries + backoff |
+| **Điều khiển worker** | ❌ Không | ✅ `isWorker: true/false` |
+| **Theo dõi job** | ❌ Không | ✅ Job events, progress, status |
+| **Job ID tự động** | ❌ Phải tự tạo | ✅ Bee Queue gán `job.id` |
+| **Fan-out** | ✅ Tự nhiên (broadcast) | ✅ Có kiểm soát (mỗi queue riêng) |
+
+### Redis Configuration (`redis.conf`)
+
+```conf
+appendonly yes        # Bật AOF persistence — ghi mọi write vào disk
+appendfsync everysec  # Flush mỗi giây
+maxmemory-policy noeviction  # Không tự xoá key
+```
 
 ---
 
-## 4. Hướng dẫn chạy (Local)
+## 4. Hướng dẫn chạy
 
 ### Yêu cầu
-- Docker Desktop đã cài và đang chạy.
+- Docker Desktop đã cài và đang chạy
 
-### Khởi động hệ thống
+### Khởi động
 
 ```bash
-# Clone repository
-git clone https://github.com/YOUR_USERNAME/lab6.git
-cd lab6
-
-# Khởi động các container
 docker-compose up --build -d
 ```
 
-### Truy cập Web Dashboard
-Mở trình duyệt và truy cập: **[http://localhost:8000](http://localhost:8000)**
+### Truy cập Dashboard
+Mở: **[http://localhost:8000](http://localhost:8000)**
 
-Web Dashboard cho phép bạn:
-- Tạo đơn hàng với dữ liệu mẫu chỉ bằng 1 click.
-- Theo dõi **Live Event Stream** hiển thị log real-time từ tất cả các service (thông qua Server-Sent Events).
+Dashboard có 3 tab:
+- **📊 Dashboard** — Tạo đơn hàng + Live Event Stream
+- **🔧 Admin Panel** — Redis config, Queue health, Worker status
+- **📋 Job Inspector** — Xem chi tiết job: ID, payload, status, progress
 
 ---
 
-## 5. Hướng dẫn Demo
+## 5. Câu hỏi Demo
 
-Bạn có thể demo trực tiếp trên Web Dashboard hoặc dùng lệnh curl/PowerShell.
+### ❓ 1. Redis cấu hình gì?
 
-### Kịch bản 1: Asynchronous Service Calling (Bất đồng bộ)
-1. Tạo một đơn hàng trên Dashboard.
-2. **Quan sát:** Thông báo "Order created successfully" hiện ra **ngay lập tức** (< 1 giây).
-3. **Quan sát Live Event Stream:** Analytics Service vẫn báo `⏳ Processing analytics...` và mất 5-8 giây mới hoàn thành.
-> 👉 **Chứng minh:** Thao tác tạo đơn hàng không bị block bởi các tác vụ xử lý nặng.
+> Mở tab **Admin Panel** → xem **Redis Configuration**.
+> - `appendonly: yes` — bật AOF persistence để lưu data
+> - `appendfsync: everysec` — flush ra disk mỗi giây
+> - `isWorker: false` trên Order Service (producer only)
+> - `stallInterval: 5000ms` — kiểm tra stalled job mỗi 5s
 
-### Kịch bản 2: Fan-out Pattern
-1. Tạo 1 đơn hàng duy nhất.
-2. **Quan sát Live Event Stream:** Cùng 1 lúc, cả 3 service (Inventory, Notification, Analytics) đều nhận được thông tin về đơn hàng đó và bắt đầu xử lý.
-> 👉 **Chứng minh:** 1 event được nhiều thành phần xử lý song song.
+### ❓ 2. Có điều khiển được các subscriber không?
 
-### Kịch bản 3: Fault Isolation (Cô lập lỗi)
-1. Nhấn tạo liên tục 3-5 đơn hàng.
-2. **Quan sát Live Event Stream:** 
-   - Sẽ có lúc Notification Service báo lỗi màu đỏ `❌ Failed to send email — SMTP server unavailable` (xác suất 50%).
-   - Tuy nhiên, Inventory và Analytics **vẫn xử lý bình thường** các đơn hàng đó. Order Service vẫn trả kết quả thành công.
-> 👉 **Chứng minh:** Lỗi ở một thành phần không làm sập toàn bộ hệ thống hay ảnh hưởng đến luồng chính.
+> **Có.** Bee Queue dùng `isWorker` flag:
+> - `isWorker: true` → service sẽ lắng nghe và xử lý job
+> - `isWorker: false` → service KHÔNG xử lý job, chỉ có thể tạo job
+> 
+> **Demo:** Stop container notification → tạo order → job nằm trong queue chờ → start lại → job được xử lý.
+
+### ❓ 3. Thêm service nhưng không sub vô channel?
+
+> **Có.** Tạo service với `IS_WORKER=false` trong docker-compose:
+> ```yaml
+> environment:
+>   - IS_WORKER=false
+> ```
+> Service sẽ kết nối Redis bình thường nhưng **KHÔNG gọi `queue.process()`** → không nhận job nào.
+
+### ❓ 4. Service sập thì sao? Có lưu được message không?
+
+> **Có.** Bee Queue lưu job trong Redis (persistence bằng AOF).
+> 
+> **Demo:**
+> 1. `docker stop eda-inventory-service`
+> 2. Tạo đơn hàng → job được lưu vào `inventory_queue` trong Redis
+> 3. `docker start eda-inventory-service`
+> 4. Worker khởi động lại → tự lấy job từ queue → xử lý bình thường
+> 
+> Kiểm tra trên tab **Admin Panel** → Queue Health: thấy `waiting: 1`.
+
+### ❓ 5. Xem service chạy như thế nào (payload)?
+
+> Mở tab **📋 Job Inspector**:
+> - Thấy danh sách tất cả job với ID, queue, status, progress
+> - Nhấn **View** → modal hiển thị toàn bộ payload JSON, result, error
+> - Mỗi job hiển thị: `event_id`, `event_type`, `timestamp`, `data` (order_id, customer, items, total)
+
+### ❓ 6. Mỗi event có ID không?
+
+> **Có.** Mỗi job Bee Queue tự động gán `job.id` (auto-increment).
+> Ngoài ra, payload còn chứa `event_id` (UUID) do Order Service tạo.
+> Trên Live Event Stream, mỗi log đều hiển thị `[Job #ID]`.
 
 ---
 
 ## 6. Event Schema
 
-Định dạng JSON của event `order_created` gửi qua Redis:
+Job payload gửi qua Bee Queue:
 
 ```json
 {
   "event_id": "550e8400-e29b-41d4-a716-446655440000",
   "event_type": "order_created",
-  "timestamp": "2024-01-15T10:30:00.000000+00:00",
+  "timestamp": "2024-01-15T10:30:00.000Z",
   "data": {
     "order_id": "a1b2c3d4-...",
     "customer_name": "Nguyen Van A",
     "items": [
       { "product": "Laptop", "quantity": 1, "price": 15000000 }
     ],
-    "total": 15000000
+    "total": 15000000,
+    "status": "created",
+    "created_at": "2024-01-15T10:30:00.000Z"
   }
 }
 ```
+
+Bee Queue tự gán thêm:
+- `job.id` — auto-increment ID
+- `job.retries` — số lần retry
+- `job.timeout` — timeout
+- `job.progress` — tiến độ (0-100%)

@@ -1,17 +1,21 @@
 services:
-  # ── Message Broker ────────────────────────────────────────────────────
+  # ── Message Broker + Job Store ─────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: eda-redis
     ports:
       - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
 
-  # ── Producer ──────────────────────────────────────────────────────────
+  # ── Producer (Order Service) ───────────────────────────────────────────────
   order_service:
     build: ./order_service
     container_name: eda-order-service
@@ -21,17 +25,23 @@ services:
       redis:
         condition: service_healthy
     environment:
-      - PYTHONUNBUFFERED=1
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
 
-  # ── Consumers ─────────────────────────────────────────────────────────
+  # ── Workers ────────────────────────────────────────────────────────────────
   inventory_service:
     build: ./inventory_service
     container_name: eda-inventory-service
     depends_on:
       redis:
         condition: service_healthy
+      order_service:
+        condition: service_started
     environment:
-      - PYTHONUNBUFFERED=1
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - IS_WORKER=true
+      - ORDER_SERVICE_URL=http://order_service:8000
 
   notification_service:
     build: ./notification_service
@@ -39,8 +49,13 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      order_service:
+        condition: service_started
     environment:
-      - PYTHONUNBUFFERED=1
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - IS_WORKER=true
+      - ORDER_SERVICE_URL=http://order_service:8000
 
   analytics_service:
     build: ./analytics_service
@@ -48,5 +63,13 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      order_service:
+        condition: service_started
     environment:
-      - PYTHONUNBUFFERED=1
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - IS_WORKER=true
+      - ORDER_SERVICE_URL=http://order_service:8000
+
+volumes:
+  redis_data:

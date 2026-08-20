@@ -1,0 +1,13 @@
+{
+  "name": "notification-worker",
+  "version": "1.0.0",
+  "description": "Notification Service — Bee Queue Worker (50% failure rate)",
+  "main": "worker.js",
+  "scripts": {
+    "start": "node worker.js"
+  },
+  "dependencies": {
+    "bee-queue": "^1.7.1",
+    "ioredis": "^5.4.1"
+  }
+}
